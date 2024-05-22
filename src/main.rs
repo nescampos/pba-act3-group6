@@ -1,5 +1,6 @@
 #![allow(unused_variables)]
 #![allow(unused_imports)]
+#![warn(unused_mut)]
 
 use std::thread;
 use std::sync::mpsc::channel;
@@ -15,6 +16,12 @@ struct DrawAction {
     public_key: PublicKey,
 	signature: [u8; 97],
     thread_id: u8,
+}
+
+// From the VRF we generate the current draw card
+fn compute_card(io: &VRFInOut) -> Option<u16> {
+    let b: [u8; 8] = io.make_bytes(b"new_card");
+	Some((u64::from_le_bytes(b) % (CARDS_CON as u64)) as u16)
 }
 
 
@@ -50,26 +57,32 @@ fn main() {
     //Now we receive the transactions from the shared channel to verify the winner
     for i in 0..5 {
         // We get the response from the channel
-        let ans = rx.recv().unwrap();
+        let response = rx.recv().unwrap();
 
         //Verify the card
+        let card_try = get_card(&response.public_key, &response.signature, seed_for_vrf).unwrap();
         
 
         //Verify the winner
+        if card_try > thread_winning_score {
+			thread_winning = response.thread_id as i32;
+			thread_winning_score = response.value as u16;
+		}
 	}
 
     // print the output
-	println!("The winning thread is: {:#?}", thread_winning);
-	println!("The winning thread score is: {}", thread_winning_score);
+	println!("The winner (thread) is: {:#?}", thread_winning);
+	println!("The card is: {}", thread_winning_score);
 }
 
 
 
-
-// From the VRF we generate the current draw card
-fn compute_card(io: &VRFInOut) -> Option<u16> {
-    let b: [u8; 8] = io.make_bytes(b"new_card");
-	Some((u64::from_le_bytes(b) % (CARDS_CON as u64)) as u16)
+fn get_card(public: &PublicKey, vrf_signature: &[u8; 97], seed: &[u8; 32]) -> Option<u16> {
+	let card_try = validate_try(seed, vrf_signature[96])?;
+	let out = VRFPreOut::from_bytes(&vrf_signature[..32]).ok()?;
+	let proof = VRFProof::from_bytes(&vrf_signature[32..96]).ok()?;
+	let (io, _) = public.vrf_verify(card_try, &out, &proof).ok()?;
+	compute_card(&io)
 }
 
 
@@ -106,3 +119,4 @@ fn validate_try(seed: &[u8; 32], draw_num: u8) -> Option<Transcript> {
 	game_try.append_u64(b"draw_game", draw_num as u64);
     Some(game_try)
 }
+
