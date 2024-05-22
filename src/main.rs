@@ -4,6 +4,7 @@
 use std::thread;
 use std::sync::mpsc::channel;
 use schnorrkel::{ vrf::{VRFInOut, VRFPreOut, VRFProof},Keypair, PublicKey,};
+use merlin::Transcript;
 
 const CARDS_CON: u16 = 52;
 const DRAWS_CON: u8 = 8;
@@ -52,6 +53,7 @@ fn main() {
         let ans = rx.recv().unwrap();
 
         //Verify the card
+        
 
         //Verify the winner
 	}
@@ -70,17 +72,37 @@ fn compute_card(io: &VRFInOut) -> Option<u16> {
 	Some((u64::from_le_bytes(b) % (CARDS_CON as u64)) as u16)
 }
 
+
+
 fn draw_card(keypair: &Keypair, seed: &[u8; 32], draw_num: u8) -> Option<(u16, [u8; 97])> {
-    todo!()
+    
+	let game_try_transcript = validate_try(seed, draw_num)?;
+	let (io, proof, _) = keypair.vrf_sign(game_try_transcript);
+	let computed_card = compute_card(&io)?;
+	let mut vrf_signature = [0u8; 97];
+	// the first 32 bytes are io
+	vrf_signature[..32].copy_from_slice(&io.to_preout().to_bytes()[..]);
+	// the next 64 bytes are the proof
+	vrf_signature[32..96].copy_from_slice(&proof.to_bytes()[..]);
+	// the final byte is the draw number
+	vrf_signature[96] = draw_num;
+	Some((computed_card, vrf_signature))
 }
 
-
-
-fn verify_card(public: &PublicKey, vrf_signature: &[u8; 97], seed: &[u8; 32]) -> Option<u16> {
-    todo!()
-}
 
 fn draws_cards(keypair: &Keypair, seed: &[u8; 32]) -> Vec<(u16, [u8; 97])> {
     // Take out the cards we have, according to the seed that is given to you.
 	(0..DRAWS_CON).filter_map(|i| draw_card(keypair, seed, i)).collect()
+}
+
+fn validate_try(seed: &[u8; 32], draw_num: u8) -> Option<Transcript> {
+    // Validate the card number
+    if draw_num > DRAWS_CON {
+		return None;
+	}
+    //Checking the validation  of the number of draws
+	let mut game_try = Transcript::new(b"Deck Poker");
+	game_try.append_message(b"seed_game", seed);
+	game_try.append_u64(b"draw_game", draw_num as u64);
+    Some(game_try)
 }
