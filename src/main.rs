@@ -54,9 +54,10 @@ fn main() {
 
 
 
-
+// From the VRF we generate the current draw card
 fn compute_card(io: &VRFInOut) -> Option<u16> {
-    todo!()
+    let b: [u8; 8] = io.make_bytes(b"new_card");
+	Some((u64::from_le_bytes(b) % (CARDS_CON as u64)) as u16)
 }
 
 fn draw_card(keypair: &Keypair, seed: &[u8; 32], draw_num: u8) -> Option<(u16, [u8; 97])> {
