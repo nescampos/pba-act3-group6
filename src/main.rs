@@ -28,7 +28,7 @@ fn main() {
     // half (rx for receiving).
     let (tx, rx) = channel();
 
-    //We use 5 threads (the number of members for group 6)
+    //We use 5 threads (the number of members for group 6) to draw a card for every member
     for i in 0..5 {
 		let cloned_transmission = tx.clone();
 
@@ -44,6 +44,16 @@ fn main() {
 			let public_key = keypair.public;
 			cloned_transmission.send(DrawAction { value: card_available as u8,public_key, signature: signature_available, thread_id: i as u8 }).unwrap();
 		});
+	}
+
+    //Now we receive the transactions from the shared channel to verify the winner
+    for i in 0..5 {
+        // We get the response from the channel
+        let ans = rx.recv().unwrap();
+
+        //Verify the card
+
+        //Verify the winner
 	}
 
     // print the output
